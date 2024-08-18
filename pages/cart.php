@@ -1,57 +1,75 @@
 <?php
+// Start the session
+session_start();
+
 // Include the database connection file
 include '../users/db.php';
 
 // Check if an action is provided to add a product
-if (isset($_GET['action']) && $_GET['action'] == 'add' && isset($_GET['id'])) {
-    $product_id = $conn->real_escape_string($_GET['id']);
+if (isset($_GET['action']) && $_GET['action'] === 'add' && isset($_GET['id'])) {
+    $product_id = $_GET['id'];
 
-    // Fetch product details
-    $sql = "SELECT * FROM product WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param('i', $product_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Validate the product ID
+    if (filter_var($product_id, FILTER_VALIDATE_INT)) {
+        // Fetch product details
+        $sql = "SELECT * FROM product WHERE id = ?";
+        if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param('i', $product_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-    if ($result->num_rows > 0) {
-        $product = $result->fetch_assoc();
+            if ($result->num_rows > 0) {
+                $product = $result->fetch_assoc();
 
-        // Initialize the cart if not already
-        if (!isset($_SESSION['cart'])) {
-            $_SESSION['cart'] = array();
-        }
+                // Initialize the cart if not already
+                if (!isset($_SESSION['cart'])) {
+                    $_SESSION['cart'] = array();
+                }
 
-        // Add product to the cart
-        if (isset($_SESSION['cart'][$product_id])) {
-            $_SESSION['cart'][$product_id]['quantity']++;
+                // Add product to the cart
+                if (isset($_SESSION['cart'][$product_id])) {
+                    $_SESSION['cart'][$product_id]['quantity']++;
+                } else {
+                    $_SESSION['cart'][$product_id] = array(
+                        'title' => $product['title'],
+                        'price' => $product['price'],
+                        'quantity' => 1
+                    );
+                }
+
+                // Redirect to cart page
+                header('Location: cart.php');
+                exit();
+            } else {
+                echo "Product not found!";
+            }
+
+            $stmt->close();
         } else {
-            $_SESSION['cart'][$product_id] = array(
-                'title' => $product['title'],
-                'price' => $product['price'],
-                'quantity' => 1
-            );
+            echo "SQL Preparation Error: " . $conn->error;
+        }
+    } else {
+        echo "Invalid product ID.";
+    }
+}
+
+// Check if an action is provided to remove a product
+if (isset($_GET['action']) && $_GET['action'] === 'remove' && isset($_GET['id'])) {
+    $product_id = $_GET['id'];
+
+    // Validate the product ID
+    if (filter_var($product_id, FILTER_VALIDATE_INT)) {
+        // Remove product from the cart
+        if (isset($_SESSION['cart'][$product_id])) {
+            unset($_SESSION['cart'][$product_id]);
         }
 
         // Redirect to cart page
         header('Location: cart.php');
         exit();
     } else {
-        echo "Product not found!";
+        echo "Invalid product ID.";
     }
-}
-
-// Check if an action is provided to remove a product
-if (isset($_GET['action']) && $_GET['action'] == 'remove' && isset($_GET['id'])) {
-    $product_id = $conn->real_escape_string($_GET['id']);
-
-    // Remove product from the cart
-    if (isset($_SESSION['cart'][$product_id])) {
-        unset($_SESSION['cart'][$product_id]);
-    }
-
-    // Redirect to cart page
-    header('Location: cart.php');
-    exit();
 }
 ?>
 
@@ -112,6 +130,5 @@ if (isset($_GET['action']) && $_GET['action'] == 'remove' && isset($_GET['id']))
     </main>
 
     <?php include '../includes/footer.php'; ?>
-    <script src="../assets/js/dev.js"></script>
 </body>
 </html>
